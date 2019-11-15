@@ -328,7 +328,9 @@ class JobSweeper(
                             .query(boolQueryBuilder))
 
             val response = sweepSearchBackoff.retry {
-                client.search(jobSearchRequest).actionGet(requestTimeout)
+                AuthCenter.runWithElasticUser {
+                    client.search(jobSearchRequest).actionGet(requestTimeout)
+                }
             }
             if (response.status() != RestStatus.OK) {
                 logger.error("Error sweeping shard $shardId.", response.firstFailureOrNull())

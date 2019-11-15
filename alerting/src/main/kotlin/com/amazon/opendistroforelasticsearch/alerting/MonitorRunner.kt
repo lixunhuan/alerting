@@ -18,6 +18,7 @@ package com.amazon.opendistroforelasticsearch.alerting
 import com.amazon.opendistroforelasticsearch.alerting.alerts.AlertError
 import com.amazon.opendistroforelasticsearch.alerting.alerts.AlertIndices
 import com.amazon.opendistroforelasticsearch.alerting.alerts.moveAlerts
+import com.amazon.opendistroforelasticsearch.alerting.core.AuthCenter
 import com.amazon.opendistroforelasticsearch.alerting.core.JobRunner
 import com.amazon.opendistroforelasticsearch.alerting.core.model.ScheduledJob
 import com.amazon.opendistroforelasticsearch.alerting.core.model.ScheduledJob.Companion.SCHEDULED_JOBS_INDEX
@@ -289,7 +290,9 @@ class MonitorRunner(
                         XContentType.JSON.xContent().createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, searchSource).use {
                             searchRequest.source(SearchSourceBuilder.fromXContent(it))
                         }
-                        val searchResponse: SearchResponse = client.suspendUntil { client.search(searchRequest, it) }
+                        val searchResponse: SearchResponse = client.suspendUntil { 
+                            AuthCenter.runWithElasticUser { client.search(searchRequest, it)} 
+                        }
                         results += searchResponse.convertToMap()
                     }
                     else -> {
@@ -321,7 +324,9 @@ class MonitorRunner(
         val request = SearchRequest(AlertIndices.ALERT_INDEX)
                 .routing(monitor.id)
                 .source(alertQuery(monitor))
-        val response: SearchResponse = client.suspendUntil { client.search(request, it) }
+        val response: SearchResponse = client.suspendUntil {
+            AuthCenter.runWithElasticUser { client.search(request, it) }
+        }
         if (response.status() != RestStatus.OK) {
             throw (response.firstFailureOrNull()?.cause ?: RuntimeException("Unknown error loading alerts"))
         }
@@ -384,7 +389,9 @@ class MonitorRunner(
         // Retry Bulk requests if there was any 429 response
         retryPolicy.retry(logger, listOf(RestStatus.TOO_MANY_REQUESTS)) {
             val bulkRequest = BulkRequest().add(requestsToRetry)
-            val bulkResponse: BulkResponse = client.suspendUntil { client.bulk(bulkRequest, it) }
+            val bulkResponse: BulkResponse = client.suspendUntil {
+                AuthCenter.runWithElasticUser {client.bulk(bulkRequest, it)}
+            }
             val failedResponses = (bulkResponse.items ?: arrayOf()).filter { it.isFailed }
             requestsToRetry = failedResponses.filter { it.status() == RestStatus.TOO_MANY_REQUESTS }
                 .map { bulkRequest.requests()[it.itemId] as IndexRequest }
@@ -446,7 +453,9 @@ class MonitorRunner(
 
     private suspend fun getDestinationInfo(destinationId: String): Destination {
         val getRequest = GetRequest(SCHEDULED_JOBS_INDEX, destinationId).routing(destinationId)
-        val getResponse: GetResponse = client.suspendUntil { client.get(getRequest, it) }
+        val getResponse: GetResponse = client.suspendUntil {
+            AuthCenter.runWithElasticUser { client.get(getRequest, it) }
+        }
         if (!getResponse.isExists || getResponse.isSourceEmpty) {
             throw IllegalStateException("Destination document with id $destinationId not found or source is empty")
         }

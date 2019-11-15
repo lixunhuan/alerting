@@ -124,8 +124,11 @@ object ExtendThreadContextManager {
         val contextThreadLocalObject = FakeThreadContext.reflectGetThreadLocal(threadContext)
         val threadLocalContext = FakeContextThreadLocal.reflectThreadLocalGetMethod(contextThreadLocalObject)
         val transientHeaders = FakeThreadContextStruct.getTransientHeaders(threadLocalContext)
+        @Suppress("UNCHECKED_CAST")
         FakeThreadContextStruct.setTransientHeaders(threadLocalContext,(transientHeaders as Map<String, Any>).minus(key))
+
         val requestHeaders = FakeThreadContextStruct.getRequestHeaders(threadLocalContext)
+        @Suppress("UNCHECKED_CAST")
         FakeThreadContextStruct.setRequestHeaders(threadLocalContext,(requestHeaders as Map<String, Any>).minus(key))
         return ContextRecover(threadLocalContext, transientHeaders, requestHeaders)
     }

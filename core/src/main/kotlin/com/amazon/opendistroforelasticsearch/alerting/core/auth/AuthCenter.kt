@@ -1,4 +1,4 @@
-package com.amazon.opendistroforelasticsearch.alerting.core
+package com.amazon.opendistroforelasticsearch.alerting.core.auth
 
 import org.elasticsearch.Version
 import org.elasticsearch.common.util.concurrent.ThreadContext
@@ -15,33 +15,38 @@ class AuthCenter(private val tContext: ThreadContext) {
         }
         @Synchronized
         fun setUpAuthContextOnAlertPluginInit(tContext: ThreadContext) {
-            println("${Thread.currentThread().name} : try set up")
-            for(line in Thread.currentThread().stackTrace){
-                println("${line.className}.${line.methodName}.${line.lineNumber}")
-            }
+//            println("${Thread.currentThread().name} : try set up")
+//            for(line in Thread.currentThread().stackTrace){
+//                println("${line.className}.${line.methodName}.${line.lineNumber}")
+//            }
             val ac = AuthCenter(tContext)
             ac.loadClass()
             target = ac
         }
         @Synchronized
         fun <T> runWithElasticUser(callback: () -> T):T{
+            return callback()
+        }
+
+        @Synchronized
+        fun <T> execWithElasticUser(callback: () -> T):T{
             val needToRecoverCurrentAuthentication =
                     target!!.tContext.getTransient<Any>(XPACK_SECURITY_AUTH_HEADER) != null
 
             if (needToRecoverCurrentAuthentication){
-                val recover = ExtendThreadContextManager.clean(target!!.tContext,XPACK_SECURITY_AUTH_HEADER);
-                println("replace with mariya authentication")
+                val recover = ExtendThreadContextManager.clean(target!!.tContext, XPACK_SECURITY_AUTH_HEADER);
+                //println("replace with mariya authentication")
                 target?.setElasticUserToContext();
                 val result =  callback();
-                println("recover original authentication")
+                //println("recover original authentication")
                 recover.recover();
                 return result
             }else{
-                println("insert with mariya authentication")
+                //println("insert with mariya authentication")
                 target?.setElasticUserToContext();
                 val result =  callback();
-                ExtendThreadContextManager.clean(target!!.tContext,XPACK_SECURITY_AUTH_HEADER);
-                println("clean authentication")
+                ExtendThreadContextManager.clean(target!!.tContext, XPACK_SECURITY_AUTH_HEADER);
+                //println("clean authentication")
                 return  result
             }
         }
@@ -76,10 +81,10 @@ class AuthCenter(private val tContext: ThreadContext) {
             val roles = arrayOf("tester")
             val user = userClass.getConstructor(String::class.java, Array<String>::class.java, String::class.java, String::class.java, Map::class.java, Boolean::class.javaPrimitiveType)
                     .newInstance("maliya", roles, "kibana", "", null, true)
-            val realm =FakeXPackClass.FakeAuthenticationRealm.newInstance("__attach", "__attach", "nodeName")
+            val realm = FakeXPackClass.FakeAuthenticationRealm.newInstance("__attach", "__attach", "nodeName")
            // val typeClass = FakeXPackClass.FakeAuthenticationType.loadClass()
             val internalType = FakeXPackClass.FakeAuthenticationType.internal
-            authentication =  FakeXPackClass.FakeAuthentication.newInstance(user, realm, null, Version.CURRENT, internalType!!, emptyMap<Any, Any>())
+            authentication = FakeXPackClass.FakeAuthentication.newInstance(user, realm, null, Version.CURRENT, internalType!!, emptyMap<Any, Any>())
 
         }
         return authentication

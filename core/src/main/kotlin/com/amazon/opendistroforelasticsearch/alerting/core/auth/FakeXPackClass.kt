@@ -1,4 +1,4 @@
-package com.amazon.opendistroforelasticsearch.alerting.core
+package com.amazon.opendistroforelasticsearch.alerting.core.auth
 
 import org.elasticsearch.Version
 

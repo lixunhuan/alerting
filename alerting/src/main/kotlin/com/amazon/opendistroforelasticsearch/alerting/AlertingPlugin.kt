@@ -15,12 +15,13 @@
 package com.amazon.opendistroforelasticsearch.alerting
 
 import com.amazon.opendistroforelasticsearch.alerting.alerts.AlertIndices
-import com.amazon.opendistroforelasticsearch.alerting.core.AuthCenter
-import com.amazon.opendistroforelasticsearch.alerting.core.ExtendThreadContextManager
+import com.amazon.opendistroforelasticsearch.alerting.core.auth.AuthCenter
+import com.amazon.opendistroforelasticsearch.alerting.core.auth.ExtendThreadContextManager
 import com.amazon.opendistroforelasticsearch.alerting.core.JobSweeper
 import com.amazon.opendistroforelasticsearch.alerting.core.ScheduledJobIndices
 import com.amazon.opendistroforelasticsearch.alerting.core.action.node.ScheduledJobsStatsAction
 import com.amazon.opendistroforelasticsearch.alerting.core.action.node.ScheduledJobsStatsTransportAction
+import com.amazon.opendistroforelasticsearch.alerting.core.auth.DynamicAuthClientProxy
 import com.amazon.opendistroforelasticsearch.alerting.core.model.ScheduledJob
 import com.amazon.opendistroforelasticsearch.alerting.core.model.SearchInput
 import com.amazon.opendistroforelasticsearch.alerting.core.resthandler.RestScheduledJobStatsHandler
@@ -138,11 +139,12 @@ internal class AlertingPlugin : PainlessExtension, ActionPlugin, ScriptPlugin, P
         val settings = environment.settings()
         AuthCenter.setUpAuthContextOnAlertPluginInit(threadPool.threadContext)
         ExtendThreadContextManager.load()
-        alertIndices = AlertIndices(settings, client.admin().indices(), threadPool, clusterService)
-        runner = MonitorRunner(settings, client, threadPool, scriptService, xContentRegistry, alertIndices, clusterService)
-        scheduledJobIndices = ScheduledJobIndices(client.admin(), clusterService)
+       val extendedClient = DynamicAuthClientProxy.clone(client)
+        alertIndices = AlertIndices(settings, extendedClient.admin().indices(), threadPool, clusterService)
+        runner = MonitorRunner(settings, extendedClient, threadPool, scriptService, xContentRegistry, alertIndices, clusterService)
+        scheduledJobIndices = ScheduledJobIndices(extendedClient.admin(), clusterService)
         scheduler = JobScheduler(threadPool, runner)
-        sweeper = JobSweeper(environment.settings(), client, clusterService, threadPool, xContentRegistry, scheduler, ALERTING_JOB_TYPES)
+        sweeper = JobSweeper(environment.settings(), extendedClient, clusterService, threadPool, xContentRegistry, scheduler, ALERTING_JOB_TYPES)
         this.threadPool = threadPool
         this.clusterService = clusterService
         return listOf(sweeper, scheduler, runner, scheduledJobIndices)

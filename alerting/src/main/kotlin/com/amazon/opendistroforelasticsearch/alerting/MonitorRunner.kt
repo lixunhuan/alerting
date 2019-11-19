@@ -18,7 +18,7 @@ package com.amazon.opendistroforelasticsearch.alerting
 import com.amazon.opendistroforelasticsearch.alerting.alerts.AlertError
 import com.amazon.opendistroforelasticsearch.alerting.alerts.AlertIndices
 import com.amazon.opendistroforelasticsearch.alerting.alerts.moveAlerts
-import com.amazon.opendistroforelasticsearch.alerting.core.AuthCenter
+import com.amazon.opendistroforelasticsearch.alerting.core.auth.AuthCenter
 import com.amazon.opendistroforelasticsearch.alerting.core.JobRunner
 import com.amazon.opendistroforelasticsearch.alerting.core.model.ScheduledJob
 import com.amazon.opendistroforelasticsearch.alerting.core.model.ScheduledJob.Companion.SCHEDULED_JOBS_INDEX
@@ -291,7 +291,7 @@ class MonitorRunner(
                             searchRequest.source(SearchSourceBuilder.fromXContent(it))
                         }
                         val searchResponse: SearchResponse = client.suspendUntil { 
-                            AuthCenter.runWithElasticUser { client.search(searchRequest, it)} 
+                            AuthCenter.runWithElasticUser { client.search(searchRequest, it)}
                         }
                         results += searchResponse.convertToMap()
                     }

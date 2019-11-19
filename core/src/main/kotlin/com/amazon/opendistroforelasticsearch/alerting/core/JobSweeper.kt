@@ -15,6 +15,7 @@
 
 package com.amazon.opendistroforelasticsearch.alerting.core
 
+import com.amazon.opendistroforelasticsearch.alerting.core.auth.AuthCenter
 import com.amazon.opendistroforelasticsearch.alerting.core.model.ScheduledJob
 import com.amazon.opendistroforelasticsearch.alerting.core.schedule.JobScheduler
 import com.amazon.opendistroforelasticsearch.alerting.core.settings.ScheduledJobSettings.Companion.REQUEST_TIMEOUT
@@ -328,9 +329,7 @@ class JobSweeper(
                             .query(boolQueryBuilder))
 
             val response = sweepSearchBackoff.retry {
-                AuthCenter.runWithElasticUser {
-                    client.search(jobSearchRequest).actionGet(requestTimeout)
-                }
+                AuthCenter.runWithElasticUser { client.search(jobSearchRequest).actionGet(requestTimeout) }
             }
             if (response.status() != RestStatus.OK) {
                 logger.error("Error sweeping shard $shardId.", response.firstFailureOrNull())

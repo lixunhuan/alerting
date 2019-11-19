@@ -1,4 +1,4 @@
-package com.amazon.opendistroforelasticsearch.alerting.core
+package com.amazon.opendistroforelasticsearch.alerting.core.auth
 
 import org.elasticsearch.common.util.concurrent.ThreadContext
 
@@ -115,21 +115,21 @@ object ExtendThreadContextManager {
     class ContextRecover constructor(internal var threadLocalContext: Any, internal var transientHeaders: Any, internal var requestHeaders: Any) {
         @Throws(IllegalAccessException::class)
         fun recover() {
-            FakeThreadContextStruct.setTransientHeaders(threadLocalContext, transientHeaders)
-            FakeThreadContextStruct.setRequestHeaders(threadLocalContext, requestHeaders)
+            ExtendThreadContextManager.FakeThreadContextStruct.setTransientHeaders(threadLocalContext, transientHeaders)
+            ExtendThreadContextManager.FakeThreadContextStruct.setRequestHeaders(threadLocalContext, requestHeaders)
         }
     }
 
     fun clean(threadContext: ThreadContext, key: String): ContextRecover {
-        val contextThreadLocalObject = FakeThreadContext.reflectGetThreadLocal(threadContext)
-        val threadLocalContext = FakeContextThreadLocal.reflectThreadLocalGetMethod(contextThreadLocalObject)
-        val transientHeaders = FakeThreadContextStruct.getTransientHeaders(threadLocalContext)
+        val contextThreadLocalObject = ExtendThreadContextManager.FakeThreadContext.reflectGetThreadLocal(threadContext)
+        val threadLocalContext = ExtendThreadContextManager.FakeContextThreadLocal.reflectThreadLocalGetMethod(contextThreadLocalObject)
+        val transientHeaders = ExtendThreadContextManager.FakeThreadContextStruct.getTransientHeaders(threadLocalContext)
         @Suppress("UNCHECKED_CAST")
-        FakeThreadContextStruct.setTransientHeaders(threadLocalContext,(transientHeaders as Map<String, Any>).minus(key))
+        (ExtendThreadContextManager.FakeThreadContextStruct.setTransientHeaders(threadLocalContext, (transientHeaders as Map<String, Any>).minus(key)))
 
-        val requestHeaders = FakeThreadContextStruct.getRequestHeaders(threadLocalContext)
+        val requestHeaders = ExtendThreadContextManager.FakeThreadContextStruct.getRequestHeaders(threadLocalContext)
         @Suppress("UNCHECKED_CAST")
-        FakeThreadContextStruct.setRequestHeaders(threadLocalContext,(requestHeaders as Map<String, Any>).minus(key))
+        (ExtendThreadContextManager.FakeThreadContextStruct.setRequestHeaders(threadLocalContext, (requestHeaders as Map<String, Any>).minus(key)))
         return ContextRecover(threadLocalContext, transientHeaders, requestHeaders)
     }
 

@@ -27,6 +27,13 @@ class AuthCenter(private val tContext: ThreadContext) {
         fun <T> runWithElasticUser(callback: () -> T):T{
             return callback()
         }
+        @Synchronized
+        fun getCurrentUserInfo():String?{
+            var authentication: Any? = target!!.tContext.getTransient<Any>(XPACK_SECURITY_AUTH_HEADER) ?: return null
+//            method = authentication.javaClass.getDeclaredMethod("getUser")
+//            object user = method.invoke(authentication)
+            return "try to do ,user = authentication.getUser() ,username = user.principal()"
+        }
 
         @Synchronized
         fun <T> execWithElasticUser(callback: () -> T):T{

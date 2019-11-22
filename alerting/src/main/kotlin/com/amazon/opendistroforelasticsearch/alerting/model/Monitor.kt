@@ -17,6 +17,7 @@ package com.amazon.opendistroforelasticsearch.alerting.model
 
 import com.amazon.opendistroforelasticsearch.alerting.settings.AlertingSettings.Companion.MONITOR_MAX_INPUTS
 import com.amazon.opendistroforelasticsearch.alerting.settings.AlertingSettings.Companion.MONITOR_MAX_TRIGGERS
+import com.amazon.opendistroforelasticsearch.alerting.core.auth.AuthCenter
 import com.amazon.opendistroforelasticsearch.alerting.core.model.Input
 import com.amazon.opendistroforelasticsearch.alerting.core.model.Schedule
 import com.amazon.opendistroforelasticsearch.alerting.core.model.ScheduledJob
@@ -41,17 +42,19 @@ import java.time.Instant
  * results.
  */
 data class Monitor(
-    override val id: String = NO_ID,
-    override val version: Long = NO_VERSION,
-    override val name: String,
-    override val enabled: Boolean,
-    override val schedule: Schedule,
-    override val lastUpdateTime: Instant,
-    override val enabledTime: Instant?,
-    val schemaVersion: Int = NO_SCHEMA_VERSION,
-    val inputs: List<Input>,
-    val triggers: List<Trigger>,
-    val uiMetadata: Map<String, Any>
+        override val id: String = NO_ID,
+        override val version: Long = NO_VERSION,
+        override val name: String,
+        override val username: String,
+        override val userRole: List<String>,
+        override val enabled: Boolean,
+        override val schedule: Schedule,
+        override val lastUpdateTime: Instant,
+        override val enabledTime: Instant?,
+        val schemaVersion: Int = NO_SCHEMA_VERSION,
+        val inputs: List<Input>,
+        val triggers: List<Trigger>,
+        val uiMetadata: Map<String, Any>
 ) : ScheduledJob {
 
     override val type = MONITOR_TYPE
@@ -86,6 +89,8 @@ data class Monitor(
         builder.field(TYPE_FIELD, type)
                 .field(SCHEMA_VERSION_FIELD, schemaVersion)
                 .field(NAME_FIELD, name)
+                .field(USERNAME_FIELD, username)
+                .field(USER_ROLE_FIELD, userRole)
                 .field(ENABLED_FIELD, enabled)
                 .optionalTimeField(ENABLED_TIME_FIELD, enabledTime)
                 .field(SCHEDULE_FIELD, schedule)
@@ -104,6 +109,8 @@ data class Monitor(
         const val TYPE_FIELD = "type"
         const val SCHEMA_VERSION_FIELD = "schema_version"
         const val NAME_FIELD = "name"
+        const val USERNAME_FIELD = "username"
+        const val USER_ROLE_FIELD = "user_role"
         const val ENABLED_FIELD = "enabled"
         const val SCHEDULE_FIELD = "schedule"
         const val TRIGGERS_FIELD = "triggers"
@@ -125,6 +132,8 @@ data class Monitor(
         @Throws(IOException::class)
         fun parse(xcp: XContentParser, id: String = NO_ID, version: Long = NO_VERSION): Monitor {
             lateinit var name: String
+            var username: String? = null
+            var userRoles: MutableList<String>? = mutableListOf()
             lateinit var schedule: Schedule
             var lastUpdateTime: Instant? = null
             var enabledTime: Instant? = null
@@ -142,6 +151,13 @@ data class Monitor(
                 when (fieldName) {
                     SCHEMA_VERSION_FIELD -> schemaVersion = xcp.intValue()
                     NAME_FIELD -> name = xcp.text()
+                    USERNAME_FIELD -> username = xcp.text()
+                    USER_ROLE_FIELD -> {
+                        ensureExpectedToken(Token.START_ARRAY, xcp.currentToken(), xcp::getTokenLocation)
+                        while (xcp.nextToken() != Token.END_ARRAY) {
+                            userRoles?.add(xcp.text())
+                        }
+                    }
                     ENABLED_FIELD -> enabled = xcp.booleanValue()
                     SCHEDULE_FIELD -> schedule = Schedule.parse(xcp)
                     INPUTS_FIELD -> {
@@ -170,9 +186,20 @@ data class Monitor(
             } else if (!enabled) {
                 enabledTime = null
             }
+
+            if (username == null) {
+                username = AuthCenter.getCurrentUserName()
+            }
+
+            if (userRoles == null || userRoles.isEmpty()) {
+                userRoles = AuthCenter.getCurrentUserRole()?.toMutableList()
+            }
+
             return Monitor(id,
                     version,
                     requireNotNull(name) { "Monitor name is null" },
+                    username!!,
+                    userRoles!!,
                     enabled,
                     requireNotNull(schedule) { "Monitor schedule is null" },
                     lastUpdateTime ?: Instant.now(),

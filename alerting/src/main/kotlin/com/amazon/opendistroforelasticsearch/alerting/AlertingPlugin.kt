@@ -135,7 +135,7 @@ internal class AlertingPlugin : PainlessExtension, ActionPlugin, ScriptPlugin, P
         nodeEnvironment: NodeEnvironment,
         namedWriteableRegistry: NamedWriteableRegistry
     ): Collection<Any> {
-        // Need to figure out how to use the Elasticsearch DI classes rather than handwiring things here.
+        // Need to figure out how to use the Elasticsearch DI classes rather than handwriting things here.
         val settings = environment.settings()
         AuthCenter.setUpAuthContextOnAlertPluginInit(threadPool.threadContext)
         ExtendThreadContextManager.load()

@@ -102,6 +102,12 @@ interface ScheduledJob : ToXContentObject {
     /** The name of the job */
     val name: String
 
+    /** The username of the job */
+    val username: String
+
+    /** The userRole of the job */
+    val userRole: List<String>
+
     /** The type of the job */
     val type: String
 

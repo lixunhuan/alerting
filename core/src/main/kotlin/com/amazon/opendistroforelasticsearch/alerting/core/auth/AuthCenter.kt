@@ -13,6 +13,7 @@ class AuthCenter(private val tContext: ThreadContext) {
         fun get(): AuthCenter? {
             return target
         }
+
         @Synchronized
         fun setUpAuthContextOnAlertPluginInit(tContext: ThreadContext) {
 //            println("${Thread.currentThread().name} : try set up")
@@ -23,41 +24,50 @@ class AuthCenter(private val tContext: ThreadContext) {
             ac.loadClass()
             target = ac
         }
+
         @Synchronized
-        fun <T> runWithElasticUser(callback: () -> T):T{
+        fun <T> runWithElasticUser(callback: () -> T): T {
             return callback()
-        }
-        @Synchronized
-        fun getCurrentUserInfo():String?{
-            var authentication: Any? = target!!.tContext.getTransient<Any>(XPACK_SECURITY_AUTH_HEADER) ?: return null
-//            method = authentication.javaClass.getDeclaredMethod("getUser")
-//            object user = method.invoke(authentication)
-            return "try to do ,user = authentication.getUser() ,username = user.principal()"
         }
 
         @Synchronized
-        fun <T> execWithElasticUser(callback: () -> T):T{
+        fun getCurrentUserName(): String? {
+            val authentication: Any? = target!!.tContext.getTransient<Any>(XPACK_SECURITY_AUTH_HEADER) ?: return null
+            val user = authentication!!.javaClass.getDeclaredMethod("getUser").invoke(authentication)
+            return FakeXPackClass.FakeUser.loadClass().getDeclaredMethod("principal").invoke(user) as String
+        }
+
+        @Synchronized
+        fun getCurrentUserRole(): Array<String>? {
+            val authentication: Any? = target!!.tContext.getTransient<Any>(XPACK_SECURITY_AUTH_HEADER) ?: return null
+            val user = authentication!!.javaClass.getDeclaredMethod("getUser").invoke(authentication)
+            return FakeXPackClass.FakeUser.loadClass().getDeclaredMethod("roles").invoke(user) as Array<String>
+        }
+
+        @Synchronized
+        fun <T> execWithElasticUser(callback: () -> T): T {
             val needToRecoverCurrentAuthentication =
                     target!!.tContext.getTransient<Any>(XPACK_SECURITY_AUTH_HEADER) != null
 
-            if (needToRecoverCurrentAuthentication){
+            if (needToRecoverCurrentAuthentication) {
                 val recover = ExtendThreadContextManager.clean(target!!.tContext, XPACK_SECURITY_AUTH_HEADER);
                 //println("replace with mariya authentication")
                 target?.setElasticUserToContext();
-                val result =  callback();
+                val result = callback();
                 //println("recover original authentication")
                 recover.recover();
                 return result
-            }else{
+            } else {
                 //println("insert with mariya authentication")
                 target?.setElasticUserToContext();
-                val result =  callback();
+                val result = callback();
                 ExtendThreadContextManager.clean(target!!.tContext, XPACK_SECURITY_AUTH_HEADER);
                 //println("clean authentication")
-                return  result
+                return result
             }
         }
     }
+
     private val klazzes = HashMap<String, Any>()
     @Synchronized
     private fun loadClass() {
@@ -76,6 +86,7 @@ class AuthCenter(private val tContext: ThreadContext) {
         FakeXPackClass.FakeAuthentication.lazy(method.invoke(null, "org.elasticsearch.xpack.core.security.authc.Authentication") as Class<*>)
 
     }
+
     private var authentication: Any? = null
     @Synchronized
     fun buildElasticUserAuthentication(): Any? {
@@ -85,17 +96,18 @@ class AuthCenter(private val tContext: ThreadContext) {
 //            val roles = arrayOf("tester")
 //            val user = userClass.getConstructor(String::class.java, Array<String>::class.java, String::class.java, String::class.java, Map::class.java, Boolean::class.javaPrimitiveType)
 //                    .newInstance("maliya", roles, "maliya", "", null, true)
-            val roles = arrayOf("tester")
+            val roles = arrayOf("superuser")
             val user = userClass.getConstructor(String::class.java, Array<String>::class.java, String::class.java, String::class.java, Map::class.java, Boolean::class.javaPrimitiveType)
-                    .newInstance("maliya", roles, "kibana", "", null, true)
+                    .newInstance("elastic", roles, "kibana", "", null, true)
             val realm = FakeXPackClass.FakeAuthenticationRealm.newInstance("__attach", "__attach", "nodeName")
-           // val typeClass = FakeXPackClass.FakeAuthenticationType.loadClass()
+            // val typeClass = FakeXPackClass.FakeAuthenticationType.loadClass()
             val internalType = FakeXPackClass.FakeAuthenticationType.internal
             authentication = FakeXPackClass.FakeAuthentication.newInstance(user, realm, null, Version.CURRENT, internalType!!, emptyMap<Any, Any>())
 
         }
         return authentication
     }
+
     fun setElasticUserToContext() {
         if (tContext.getTransient<Any>(XPACK_SECURITY_AUTH_HEADER) == null) {
             //println("${Thread.currentThread().name} : generate elastic user")
@@ -107,13 +119,16 @@ class AuthCenter(private val tContext: ThreadContext) {
         }
 
     }
-    fun getCurrentUser(): Any?{
+
+    fun getCurrentUser(): Any? {
         return tContext.getTransient<Any>(XPACK_SECURITY_AUTH_HEADER)
     }
-    fun setCurrentUser(user :Any? ){
-        tContext.putTransient(XPACK_SECURITY_AUTH_HEADER,user)
+
+    fun setCurrentUser(user: Any?) {
+        tContext.putTransient(XPACK_SECURITY_AUTH_HEADER, user)
     }
-    private fun copyUser(threadContext: ThreadContext):Boolean? {
+
+    private fun copyUser(threadContext: ThreadContext): Boolean? {
         val customerAuthentication = threadContext.getTransient<Any>(XPACK_SECURITY_AUTH_HEADER)
                 ?: throw RuntimeException("no $XPACK_SECURITY_AUTH_HEADER transient in context.")
         val authenticationClass = FakeXPackClass.FakeAuthentication.loadClass()
@@ -128,20 +143,20 @@ class AuthCenter(private val tContext: ThreadContext) {
             val getEmailMethod = userClass.getMethod("email")
             val getEnabledMethod = userClass.getMethod("enabled")
 
-            val username= getUsernameMethod.invoke(userObject)
-            val roles= getRolesMethod.invoke(userObject)
-            val metadata= getMetadataMethod.invoke(userObject)
-            val fullName= getFullNameMethod.invoke(userObject)
-            val email= getEmailMethod.invoke(userObject)
-            val enabled= getEnabledMethod.invoke(userObject)
+            val username = getUsernameMethod.invoke(userObject)
+            val roles = getRolesMethod.invoke(userObject)
+            val metadata = getMetadataMethod.invoke(userObject)
+            val fullName = getFullNameMethod.invoke(userObject)
+            val email = getEmailMethod.invoke(userObject)
+            val enabled = getEnabledMethod.invoke(userObject)
 
             //String username, String[] roles, String fullName, String email, Map<String, Object> metadata, boolean enabled)
             val userClone = userClass.getConstructor(String::class.java, Array<String>::class.java, String::class.java, String::class.java, Map::class.java, Boolean::class.javaPrimitiveType)
                     .newInstance(username, roles, fullName, email, metadata, enabled)
-            val clone=userClone.toString()
-            if (authentication === customerAuthentication){
+            val clone = userClone.toString()
+            if (authentication === customerAuthentication) {
                 return false
-            }else{
+            } else {
                 println("clone user is $clone")
                 return true
             }

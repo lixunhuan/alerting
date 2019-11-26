@@ -7,5 +7,6 @@ jdk: oraclejdk12
 
 script:
   - ./gradlew clean classes jar --scan -s
+  - docker build . -t registry.vizion.ai/es/opendistro-alerting.latest
 notifications:
   email: false

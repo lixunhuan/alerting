@@ -1,10 +1,11 @@
 language: java
 install: true
-
+sudo: required
 os: linux
 dist: trusty
 jdk: oraclejdk12
-
+services:
+  - docker
 script:
   - ./gradlew clean classes jar --scan -s
   - docker build . -t registry.vizion.ai/es/opendistro-alerting.latest

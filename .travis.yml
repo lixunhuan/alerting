@@ -6,4 +6,4 @@ dist: trusty
 jdk: oraclejdk12
 
 script:
-  - ./gradlew build --scan -s
+  - ./gradlew clean classes jar --scan -s

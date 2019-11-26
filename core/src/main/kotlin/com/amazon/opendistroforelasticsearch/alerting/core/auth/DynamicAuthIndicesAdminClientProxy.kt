@@ -48,7 +48,7 @@ class DynamicAuthIndicesAdminClientProxy(private val target: Any) : InvocationHa
             var targetName = stackTraceElement.className
             if (callerMap[targetName+stackTraceElement.lineNumber] == null ){
                 callerMap[targetName+stackTraceElement.lineNumber] = method
-                println("$targetName line ${stackTraceElement.lineNumber} call $method")
+                println("DynamicAuthIndicesAdminClientProxy: $targetName line ${stackTraceElement.lineNumber} call $method")
             }
         }
     }

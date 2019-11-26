@@ -41,7 +41,7 @@ class DynamicAuthClusterAdminClientProxy(private val target: Any): InvocationHan
             var targetName = stackTraceElement.className
             if (callerMap[targetName+stackTraceElement.lineNumber] == null ){
                 callerMap[targetName+stackTraceElement.lineNumber] = method
-                println("$targetName line ${stackTraceElement.lineNumber} call $method")
+                println("DynamicAuthClusterAdminClientProxy: $targetName line ${stackTraceElement.lineNumber} call $method")
             }
         }
     }

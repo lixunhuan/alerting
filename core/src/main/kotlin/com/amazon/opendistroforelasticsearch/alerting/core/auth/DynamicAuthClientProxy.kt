@@ -72,7 +72,7 @@ class DynamicAuthClientProxy(private val  target: Any) : InvocationHandler {
             var targetName = stackTraceElement.className
             if (callerMap[targetName+stackTraceElement.lineNumber] == null ){
                 callerMap[targetName+stackTraceElement.lineNumber] = method
-                println("$targetName line ${stackTraceElement.lineNumber} call $method")
+                println("DynamicAuthClientProxy: $targetName line ${stackTraceElement.lineNumber} call $method")
             }
         }
     }

@@ -3,6 +3,7 @@ package com.amazon.opendistroforelasticsearch.alerting.core.auth
 import org.elasticsearch.Version
 import org.elasticsearch.common.util.concurrent.ThreadContext
 import java.lang.reflect.InvocationTargetException
+import java.lang.reflect.Method
 import java.util.HashMap
 
 class AuthCenter(private val tContext: ThreadContext) {
@@ -33,15 +34,15 @@ class AuthCenter(private val tContext: ThreadContext) {
         @Synchronized
         fun getCurrentUserName(): String? {
             val authentication: Any? = target!!.tContext.getTransient<Any>(XPACK_SECURITY_AUTH_HEADER) ?: return null
-            val user = authentication!!.javaClass.getDeclaredMethod("getUser").invoke(authentication)
-            return FakeXPackClass.FakeUser.loadClass().getDeclaredMethod("principal").invoke(user) as String
+            val user = target?.getAuthenticationGetUserMethod()?.invoke(authentication)
+            return FakeXPackClass.FakeUser.getPrincipalMethod().invoke(user) as String
         }
 
         @Synchronized
         fun getCurrentUserRole(): Array<String>? {
             val authentication: Any? = target!!.tContext.getTransient<Any>(XPACK_SECURITY_AUTH_HEADER) ?: return null
-            val user = authentication!!.javaClass.getDeclaredMethod("getUser").invoke(authentication)
-            return FakeXPackClass.FakeUser.loadClass().getDeclaredMethod("roles").invoke(user) as Array<String>
+            val user =  target?.getAuthenticationGetUserMethod()?.invoke(authentication)
+            return FakeXPackClass.FakeUser.getRolesMethod().invoke(user) as Array<String>
         }
 
         @Synchronized
@@ -108,10 +109,26 @@ class AuthCenter(private val tContext: ThreadContext) {
         return authentication
     }
 
+    private var writeToContextMethod: Method? =null
+    @Synchronized
+    fun getElasticUserAuthenticationWriteToContextMethod(): Method {
+        if (writeToContextMethod == null) {
+            writeToContextMethod = buildElasticUserAuthentication()!!.javaClass.getMethod("writeToContext", ThreadContext::class.java)
+        }
+        return writeToContextMethod!!
+    }
+    private var authenticationGetUserMethod: Method? =null
+    @Synchronized
+    fun getAuthenticationGetUserMethod():Method {
+        if (authenticationGetUserMethod == null) {
+            authenticationGetUserMethod = buildElasticUserAuthentication()!!.javaClass.getMethod("getUser")
+        }
+        return authenticationGetUserMethod!!
+    }
     fun setElasticUserToContext() {
         if (tContext.getTransient<Any>(XPACK_SECURITY_AUTH_HEADER) == null) {
             //println("${Thread.currentThread().name} : generate elastic user")
-            buildElasticUserAuthentication()!!.javaClass.getMethod("writeToContext", ThreadContext::class.java)
+            getElasticUserAuthenticationWriteToContextMethod()!!
                     .invoke(authentication, tContext)
 
         } else {

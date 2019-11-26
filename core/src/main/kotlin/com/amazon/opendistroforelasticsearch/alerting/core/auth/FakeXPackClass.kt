@@ -4,6 +4,7 @@ import org.elasticsearch.Version
 
 import java.lang.reflect.Constructor
 import java.lang.reflect.InvocationTargetException
+import java.lang.reflect.Method
 
 class FakeXPackClass {
 
@@ -15,6 +16,8 @@ class FakeXPackClass {
             clazz = targetClass
             //todo
             // userConstructor = targetClass.getConstructor(Boolean::class.javaPrimitiveType)
+            principal =  clazz!!.getDeclaredMethod("principal")
+            roles =  clazz!!.getDeclaredMethod("roles")
         }
 
         fun loadClass(): Class<*> {
@@ -24,6 +27,16 @@ class FakeXPackClass {
         @Throws(IllegalAccessException::class, InvocationTargetException::class, InstantiationException::class)
         fun newInstance(b: Boolean): Any {
             return userConstructor!!.newInstance(b)
+        }
+        var principal:Method? =null
+
+        fun getPrincipalMethod():Method{
+            return principal as Method;
+        }
+        var roles:Method? =null
+
+        fun getRolesMethod():Method{
+            return roles as Method;
         }
     }
 

@@ -46,8 +46,19 @@ class AuthCenter(private val tContext: ThreadContext) {
         }
 
         private var userRoles: ThreadLocal<Any> = ThreadLocal()
-        fun setThreadLocalUser(user:Any){
-            userRoles.set(user)
+        private fun makeUser(username:String, roles:Array<String>):Any{
+            val userClass = FakeXPackClass.FakeUser.loadClass()
+            return userClass.getConstructor(String::class.java, Array<String>::class.java, String::class.java, String::class.java, Map::class.java, Boolean::class.javaPrimitiveType)
+                    .newInstance(username, roles, username, "", null, true)
+        }
+        private fun makeAuthentication(user:Any):Any{
+            val realm = FakeXPackClass.FakeAuthenticationRealm.newInstance("__attach", "__attach", "nodeName")
+            // val typeClass = FakeXPackClass.FakeAuthenticationType.loadClass()
+            val internalType = FakeXPackClass.FakeAuthenticationType.internal
+            return FakeXPackClass.FakeAuthentication.newInstance(user, realm, null, Version.CURRENT, internalType!!, emptyMap<Any, Any>())
+        }
+        fun setThreadLocalUser(user:String,roles: Array<String>){
+            userRoles.set(makeUser(user,roles))
         }
         fun cleanThreadLocalUser(){
             userRoles.remove()
@@ -113,12 +124,7 @@ class AuthCenter(private val tContext: ThreadContext) {
         }
         return authentication
     }
-    private fun makeAuthentication(user:Any):Any{
-        val realm = FakeXPackClass.FakeAuthenticationRealm.newInstance("__attach", "__attach", "nodeName")
-        // val typeClass = FakeXPackClass.FakeAuthenticationType.loadClass()
-        val internalType = FakeXPackClass.FakeAuthenticationType.internal
-        return FakeXPackClass.FakeAuthentication.newInstance(user, realm, null, Version.CURRENT, internalType!!, emptyMap<Any, Any>())
-    }
+
     private var writeToContextMethod: Method? =null
     @Synchronized
     fun getElasticUserAuthenticationWriteToContextMethod(): Method {

@@ -8,7 +8,7 @@ services:
   - docker
 script:
   - ./gradlew clean classes jar
-  - echo 'env is $REGISTRY_USERNAME'
+  - echo env is $REGISTRY_USERNAME
   - docker build . -t registry.vizion.ai/es/opendistro-alerting.latest
 notifications:
   email: false

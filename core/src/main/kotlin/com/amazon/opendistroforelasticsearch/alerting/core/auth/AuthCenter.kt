@@ -45,24 +45,31 @@ class AuthCenter(private val tContext: ThreadContext) {
             return FakeXPackClass.FakeUser.getRolesMethod().invoke(user) as Array<String>
         }
 
+        private var userRoles: ThreadLocal<Any> = ThreadLocal()
+        fun setThreadLocalUser(user:Any){
+            userRoles.set(user)
+        }
+        fun cleanThreadLocalUser(){
+            userRoles.remove()
+        }
         @Synchronized
         fun <T> execWithElasticUser(callback: () -> T): T {
             val needToRecoverCurrentAuthentication =
                     target!!.tContext.getTransient<Any>(XPACK_SECURITY_AUTH_HEADER) != null
 
             if (needToRecoverCurrentAuthentication) {
-                val recover = ExtendThreadContextManager.clean(target!!.tContext, XPACK_SECURITY_AUTH_HEADER);
+                val recover = ExtendThreadContextManager.clean(target!!.tContext, XPACK_SECURITY_AUTH_HEADER)
                 //println("replace with mariya authentication")
-                target?.setElasticUserToContext();
-                val result = callback();
+                target?.setElasticUserToContext()
+                val result = callback()
                 //println("recover original authentication")
-                recover.recover();
+                recover.recover()
                 return result
             } else {
                 //println("insert with mariya authentication")
-                target?.setElasticUserToContext();
-                val result = callback();
-                ExtendThreadContextManager.clean(target!!.tContext, XPACK_SECURITY_AUTH_HEADER);
+                target?.setElasticUserToContext()
+                val result = callback()
+                ExtendThreadContextManager.clean(target!!.tContext, XPACK_SECURITY_AUTH_HEADER)
                 //println("clean authentication")
                 return result
             }
@@ -100,15 +107,18 @@ class AuthCenter(private val tContext: ThreadContext) {
             val roles = arrayOf("superuser")
             val user = userClass.getConstructor(String::class.java, Array<String>::class.java, String::class.java, String::class.java, Map::class.java, Boolean::class.javaPrimitiveType)
                     .newInstance("elastic", roles, "kibana", "", null, true)
-            val realm = FakeXPackClass.FakeAuthenticationRealm.newInstance("__attach", "__attach", "nodeName")
-            // val typeClass = FakeXPackClass.FakeAuthenticationType.loadClass()
-            val internalType = FakeXPackClass.FakeAuthenticationType.internal
-            authentication = FakeXPackClass.FakeAuthentication.newInstance(user, realm, null, Version.CURRENT, internalType!!, emptyMap<Any, Any>())
+
+            authentication = makeAuthentication(user)
 
         }
         return authentication
     }
-
+    private fun makeAuthentication(user:Any):Any{
+        val realm = FakeXPackClass.FakeAuthenticationRealm.newInstance("__attach", "__attach", "nodeName")
+        // val typeClass = FakeXPackClass.FakeAuthenticationType.loadClass()
+        val internalType = FakeXPackClass.FakeAuthenticationType.internal
+        return FakeXPackClass.FakeAuthentication.newInstance(user, realm, null, Version.CURRENT, internalType!!, emptyMap<Any, Any>())
+    }
     private var writeToContextMethod: Method? =null
     @Synchronized
     fun getElasticUserAuthenticationWriteToContextMethod(): Method {
@@ -128,9 +138,14 @@ class AuthCenter(private val tContext: ThreadContext) {
     fun setElasticUserToContext() {
         if (tContext.getTransient<Any>(XPACK_SECURITY_AUTH_HEADER) == null) {
             //println("${Thread.currentThread().name} : generate elastic user")
-            getElasticUserAuthenticationWriteToContextMethod()!!
-                    .invoke(authentication, tContext)
-
+            val user = userRoles.get()
+            if (user == null) {
+                getElasticUserAuthenticationWriteToContextMethod()
+                        .invoke(authentication, tContext)
+            }else{
+                getElasticUserAuthenticationWriteToContextMethod()
+                        .invoke(makeAuthentication(user), tContext)
+            }
         } else {
             throw  RuntimeException("$XPACK_SECURITY_AUTH_HEADER header already exist")
         }

@@ -61,7 +61,7 @@ fun randomMonitor(
     lastUpdateTime: Instant = Instant.now().truncatedTo(ChronoUnit.MILLIS),
     withMetadata: Boolean = false
 ): Monitor {
-    return Monitor(name = name, enabled = enabled, inputs = inputs, schedule = schedule, triggers = triggers,
+    return Monitor(name = name,username = "elastic",userRole = arrayListOf("superuser"), enabled = enabled, inputs = inputs, schedule = schedule, triggers = triggers,
             enabledTime = enabledTime, lastUpdateTime = lastUpdateTime,
             uiMetadata = if (withMetadata) mapOf("foo" to "bar") else mapOf())
 }

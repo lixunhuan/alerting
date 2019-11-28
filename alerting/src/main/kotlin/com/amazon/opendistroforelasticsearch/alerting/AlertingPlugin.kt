@@ -81,11 +81,16 @@ internal class AlertingPlugin : PainlessExtension, ActionPlugin, ScriptPlugin, P
     }
 
     companion object {
-        @JvmField val KIBANA_USER_AGENT = "Kibana"
-        @JvmField val UI_METADATA_EXCLUDE = arrayOf("monitor.${Monitor.UI_METADATA_FIELD}")
-        @JvmField val MONITOR_BASE_URI = "/_opendistro/_alerting/monitors"
-        @JvmField val DESTINATION_BASE_URI = "/_opendistro/_alerting/destinations"
-        @JvmField val ALERTING_JOB_TYPES = listOf("monitor")
+        @JvmField
+        val KIBANA_USER_AGENT = "Kibana"
+        @JvmField
+        val UI_METADATA_EXCLUDE = arrayOf("monitor.${Monitor.UI_METADATA_FIELD}")
+        @JvmField
+        val MONITOR_BASE_URI = "/_opendistro/_alerting/monitors"
+        @JvmField
+        val DESTINATION_BASE_URI = "/_opendistro/_alerting/destinations"
+        @JvmField
+        val ALERTING_JOB_TYPES = listOf("monitor")
     }
 
     lateinit var runner: MonitorRunner
@@ -97,13 +102,13 @@ internal class AlertingPlugin : PainlessExtension, ActionPlugin, ScriptPlugin, P
     lateinit var clusterService: ClusterService
 
     override fun getRestHandlers(
-        settings: Settings,
-        restController: RestController,
-        clusterSettings: ClusterSettings,
-        indexScopedSettings: IndexScopedSettings,
-        settingsFilter: SettingsFilter,
-        indexNameExpressionResolver: IndexNameExpressionResolver?,
-        nodesInCluster: Supplier<DiscoveryNodes>
+            settings: Settings,
+            restController: RestController,
+            clusterSettings: ClusterSettings,
+            indexScopedSettings: IndexScopedSettings,
+            settingsFilter: SettingsFilter,
+            indexNameExpressionResolver: IndexNameExpressionResolver?,
+            nodesInCluster: Supplier<DiscoveryNodes>
     ): List<RestHandler> {
         return listOf(RestGetMonitorAction(settings, restController),
                 RestDeleteMonitorAction(settings, restController),
@@ -125,21 +130,21 @@ internal class AlertingPlugin : PainlessExtension, ActionPlugin, ScriptPlugin, P
     }
 
     override fun createComponents(
-        client: Client,
-        clusterService: ClusterService,
-        threadPool: ThreadPool,
-        resourceWatcherService: ResourceWatcherService,
-        scriptService: ScriptService,
-        xContentRegistry: NamedXContentRegistry,
-        environment: Environment,
-        nodeEnvironment: NodeEnvironment,
-        namedWriteableRegistry: NamedWriteableRegistry
+            client: Client,
+            clusterService: ClusterService,
+            threadPool: ThreadPool,
+            resourceWatcherService: ResourceWatcherService,
+            scriptService: ScriptService,
+            xContentRegistry: NamedXContentRegistry,
+            environment: Environment,
+            nodeEnvironment: NodeEnvironment,
+            namedWriteableRegistry: NamedWriteableRegistry
     ): Collection<Any> {
         // Need to figure out how to use the Elasticsearch DI classes rather than handwriting things here.
         val settings = environment.settings()
         AuthCenter.setUpAuthContextOnAlertPluginInit(threadPool.threadContext)
         ExtendThreadContextManager.load()
-       val extendedClient = DynamicAuthClientProxy.clone(client)
+        val extendedClient = DynamicAuthClientProxy.clone(client)
         alertIndices = AlertIndices(settings, extendedClient.admin().indices(), threadPool, clusterService)
         runner = MonitorRunner(settings, extendedClient, threadPool, scriptService, xContentRegistry, alertIndices, clusterService)
         scheduledJobIndices = ScheduledJobIndices(extendedClient.admin(), clusterService)

@@ -96,13 +96,13 @@ import java.time.Instant
 import kotlin.coroutines.CoroutineContext
 
 class MonitorRunner(
-    settings: Settings,
-    private val client: Client,
-    private val threadPool: ThreadPool,
-    private val scriptService: ScriptService,
-    private val xContentRegistry: NamedXContentRegistry,
-    private val alertIndices: AlertIndices,
-    clusterService: ClusterService
+        settings: Settings,
+        private val client: Client,
+        private val threadPool: ThreadPool,
+        private val scriptService: ScriptService,
+        private val xContentRegistry: NamedXContentRegistry,
+        private val alertIndices: AlertIndices,
+        clusterService: ClusterService
 ) : JobRunner, CoroutineScope, AbstractLifecycleComponent() {
 
     private val logger = LogManager.getLogger(MonitorRunner::class.java)
@@ -111,17 +111,19 @@ class MonitorRunner(
     override val coroutineContext: CoroutineContext
         get() = Dispatchers.Default + runnerSupervisor
 
-    @Volatile private var retryPolicy =
-        BackoffPolicy.constantBackoff(ALERT_BACKOFF_MILLIS.get(settings), ALERT_BACKOFF_COUNT.get(settings))
-    @Volatile private var moveAlertsRetryPolicy =
-        BackoffPolicy.exponentialBackoff(MOVE_ALERTS_BACKOFF_MILLIS.get(settings), MOVE_ALERTS_BACKOFF_COUNT.get(settings))
+    @Volatile
+    private var retryPolicy =
+            BackoffPolicy.constantBackoff(ALERT_BACKOFF_MILLIS.get(settings), ALERT_BACKOFF_COUNT.get(settings))
+    @Volatile
+    private var moveAlertsRetryPolicy =
+            BackoffPolicy.exponentialBackoff(MOVE_ALERTS_BACKOFF_MILLIS.get(settings), MOVE_ALERTS_BACKOFF_COUNT.get(settings))
 
     init {
-        clusterService.clusterSettings.addSettingsUpdateConsumer(ALERT_BACKOFF_MILLIS, ALERT_BACKOFF_COUNT) {
-            millis, count -> retryPolicy = BackoffPolicy.constantBackoff(millis, count)
+        clusterService.clusterSettings.addSettingsUpdateConsumer(ALERT_BACKOFF_MILLIS, ALERT_BACKOFF_COUNT) { millis, count ->
+            retryPolicy = BackoffPolicy.constantBackoff(millis, count)
         }
-        clusterService.clusterSettings.addSettingsUpdateConsumer(MOVE_ALERTS_BACKOFF_MILLIS, MOVE_ALERTS_BACKOFF_COUNT) {
-            millis, count -> moveAlertsRetryPolicy = BackoffPolicy.exponentialBackoff(millis, count)
+        clusterService.clusterSettings.addSettingsUpdateConsumer(MOVE_ALERTS_BACKOFF_MILLIS, MOVE_ALERTS_BACKOFF_COUNT) { millis, count ->
+            moveAlertsRetryPolicy = BackoffPolicy.exponentialBackoff(millis, count)
         }
     }
 
@@ -133,7 +135,7 @@ class MonitorRunner(
         runnerSupervisor.cancel()
     }
 
-    override fun doClose() { }
+    override fun doClose() {}
 
     override fun postIndex(job: ScheduledJob) {
         if (job !is Monitor) {
@@ -246,8 +248,10 @@ class MonitorRunner(
             updatedActionExecutionResults.addAll(result.actionResults.filter { it -> !currentActionIds.contains(it.key) }
                     .map { it -> ActionExecutionResult(it.key, it.value.executionTime, if (it.value.throttled) 1 else 0) })
         } else {
-            updatedActionExecutionResults.addAll(result.actionResults.map { it -> ActionExecutionResult(it.key, it.value.executionTime,
-                    if (it.value.throttled) 1 else 0) })
+            updatedActionExecutionResults.addAll(result.actionResults.map { it ->
+                ActionExecutionResult(it.key, it.value.executionTime,
+                        if (it.value.throttled) 1 else 0)
+            })
         }
 
         // Merge the alert's error message to the current alert's history
@@ -290,8 +294,13 @@ class MonitorRunner(
                         XContentType.JSON.xContent().createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, searchSource).use {
                             searchRequest.source(SearchSourceBuilder.fromXContent(it))
                         }
-                        val searchResponse: SearchResponse = client.suspendUntil { 
-                            AuthCenter.runWithElasticUser { client.search(searchRequest, it)}
+                        val searchResponse: SearchResponse = client.suspendUntil {
+                            try {
+                                AuthCenter.setThreadLocalUser(monitor.username, monitor.userRole.toTypedArray())
+                                client.search(searchRequest, it)
+                            } finally {
+                                AuthCenter.cleanThreadLocalUser()
+                            }
                         }
                         results += searchResponse.convertToMap()
                     }
@@ -390,11 +399,11 @@ class MonitorRunner(
         retryPolicy.retry(logger, listOf(RestStatus.TOO_MANY_REQUESTS)) {
             val bulkRequest = BulkRequest().add(requestsToRetry)
             val bulkResponse: BulkResponse = client.suspendUntil {
-                AuthCenter.runWithElasticUser {client.bulk(bulkRequest, it)}
+                AuthCenter.runWithElasticUser { client.bulk(bulkRequest, it) }
             }
             val failedResponses = (bulkResponse.items ?: arrayOf()).filter { it.isFailed }
             requestsToRetry = failedResponses.filter { it.status() == RestStatus.TOO_MANY_REQUESTS }
-                .map { bulkRequest.requests()[it.itemId] as IndexRequest }
+                    .map { bulkRequest.requests()[it.itemId] as IndexRequest }
 
             if (requestsToRetry.isNotEmpty()) {
                 val retryCause = failedResponses.first { it.status() == RestStatus.TOO_MANY_REQUESTS }.failure.cause
@@ -463,7 +472,7 @@ class MonitorRunner(
         val jobSource = getResponse.sourceAsBytesRef
         return withContext(Dispatchers.IO) {
             val xcp = XContentHelper.createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE,
-                jobSource, XContentType.JSON)
+                    jobSource, XContentType.JSON)
             ensureExpectedToken(XContentParser.Token.START_OBJECT, xcp.nextToken(), xcp::getTokenLocation)
             ensureExpectedToken(XContentParser.Token.FIELD_NAME, xcp.nextToken(), xcp::getTokenLocation)
             ensureExpectedToken(XContentParser.Token.START_OBJECT, xcp.nextToken(), xcp::getTokenLocation)

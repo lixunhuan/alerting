@@ -5,12 +5,15 @@ import org.elasticsearch.common.util.concurrent.ThreadContext
 import java.lang.reflect.InvocationTargetException
 import java.lang.reflect.Method
 import java.util.HashMap
+import org.apache.logging.log4j.LogManager
+import kotlinx.coroutines.sync.*
 
 class AuthCenter(private val tContext: ThreadContext) {
-
     companion object {
         private var target: AuthCenter? = null
+        private val logger = LogManager.getLogger(AuthCenter)
         private const val XPACK_SECURITY_AUTH_HEADER = "_xpack_security_authentication"
+        private const val USER_MUTEX_LOCK_NAME = "user_mutex"
         fun get(): AuthCenter? {
             return target
         }
@@ -41,28 +44,52 @@ class AuthCenter(private val tContext: ThreadContext) {
         @Synchronized
         fun getCurrentUserRole(): Array<String>? {
             val authentication: Any? = target!!.tContext.getTransient<Any>(XPACK_SECURITY_AUTH_HEADER) ?: return null
-            val user =  target?.getAuthenticationGetUserMethod()?.invoke(authentication)
+            val user = target?.getAuthenticationGetUserMethod()?.invoke(authentication)
             return FakeXPackClass.FakeUser.getRolesMethod().invoke(user) as Array<String>
         }
 
         private var userRoles: ThreadLocal<Any> = ThreadLocal()
-        private fun makeUser(username:String, roles:Array<String>):Any{
+        private fun makeUser(username: String, roles: Array<String>): Any {
             val userClass = FakeXPackClass.FakeUser.loadClass()
             return userClass.getConstructor(String::class.java, Array<String>::class.java, String::class.java, String::class.java, Map::class.java, Boolean::class.javaPrimitiveType)
                     .newInstance(username, roles, username, "", null, true)
         }
-        private fun makeAuthentication(user:Any):Any{
+
+        private fun makeAuthentication(user: Any): Any {
             val realm = FakeXPackClass.FakeAuthenticationRealm.newInstance("__attach", "__attach", "nodeName")
             // val typeClass = FakeXPackClass.FakeAuthenticationType.loadClass()
             val internalType = FakeXPackClass.FakeAuthenticationType.internal
             return FakeXPackClass.FakeAuthentication.newInstance(user, realm, null, Version.CURRENT, internalType!!, emptyMap<Any, Any>())
         }
-        fun setThreadLocalUser(user:String,roles: Array<String>){
-            userRoles.set(makeUser(user,roles))
+
+        private val localUserMutex: ThreadLocal<Mutex> = ThreadLocal()
+        private fun getLocalUserMutex(): Mutex {
+            var m = localUserMutex.get()
+            if (m == null) {
+                m = Mutex()
+                localUserMutex.set(m)
+            }
+            return m
         }
-        fun cleanThreadLocalUser(){
+
+        fun setThreadLocalUser(user: String, roles: Array<String>) {
+            logger.info("${Thread.currentThread().id} Try lock ${getLocalUserMutex()} for user $user")
+            getLocalUserMutex().tryLock(USER_MUTEX_LOCK_NAME)
+            logger.info("${Thread.currentThread().id} ${getLocalUserMutex()} is locked for user $user")
+            userRoles.set(makeUser(user, roles))
+        }
+
+        fun cleanThreadLocalUser() {
             userRoles.remove()
+
+            if (getLocalUserMutex().isLocked) {
+                logger.info("${Thread.currentThread().id} ${getLocalUserMutex()} is locked, try unlock")
+                getLocalUserMutex().unlock(USER_MUTEX_LOCK_NAME)
+            } else {
+                logger.info("${Thread.currentThread().id} ${getLocalUserMutex()} is not locked, do nothing")
+            }
         }
+
         @Synchronized
         fun <T> execWithElasticUser(callback: () -> T): T {
             val needToRecoverCurrentAuthentication =
@@ -125,7 +152,7 @@ class AuthCenter(private val tContext: ThreadContext) {
         return authentication
     }
 
-    private var writeToContextMethod: Method? =null
+    private var writeToContextMethod: Method? = null
     @Synchronized
     fun getElasticUserAuthenticationWriteToContextMethod(): Method {
         if (writeToContextMethod == null) {
@@ -133,14 +160,16 @@ class AuthCenter(private val tContext: ThreadContext) {
         }
         return writeToContextMethod!!
     }
-    private var authenticationGetUserMethod: Method? =null
+
+    private var authenticationGetUserMethod: Method? = null
     @Synchronized
-    fun getAuthenticationGetUserMethod():Method {
+    fun getAuthenticationGetUserMethod(): Method {
         if (authenticationGetUserMethod == null) {
             authenticationGetUserMethod = buildElasticUserAuthentication()!!.javaClass.getMethod("getUser")
         }
         return authenticationGetUserMethod!!
     }
+
     fun setElasticUserToContext() {
         if (tContext.getTransient<Any>(XPACK_SECURITY_AUTH_HEADER) == null) {
             //println("${Thread.currentThread().name} : generate elastic user")
@@ -148,7 +177,7 @@ class AuthCenter(private val tContext: ThreadContext) {
             if (user == null) {
                 getElasticUserAuthenticationWriteToContextMethod()
                         .invoke(authentication, tContext)
-            }else{
+            } else {
                 getElasticUserAuthenticationWriteToContextMethod()
                         .invoke(makeAuthentication(user), tContext)
             }

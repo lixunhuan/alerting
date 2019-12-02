@@ -9,14 +9,14 @@ class DynamicAuthIndicesAdminClientProxy(private val target: Any) : InvocationHa
     @Throws(Throwable::class)
     override fun invoke(proxy: Any, method: Method, args: Array<Any>): Any? {
         this.traceLog(method.name)
-        if (args == null){
+        if (args.isEmpty()) {
             when (method.name) {
                 "exist", "create", "rolloversIndex", "putMapping" ->
                     //todo make context
                     return AuthCenter.execWithElasticUser { method.invoke(target) }
                 else -> return method.invoke(target)
             }
-        }else{
+        } else {
             when (method.name) {
                 "exist", "create", "rolloversIndex", "putMapping" ->
                     //todo make context
@@ -27,27 +27,28 @@ class DynamicAuthIndicesAdminClientProxy(private val target: Any) : InvocationHa
     }
 
     companion object {
-        private var callerMap = HashMap<String,String>()
+        private var callerMap = HashMap<String, String>()
     }
-    fun traceLog(method:String){
-        var stackTraceElement:StackTraceElement? = null
-        for (stack in Thread.currentThread().stackTrace){
+
+    fun traceLog(method: String) {
+        var stackTraceElement: StackTraceElement? = null
+        for (stack in Thread.currentThread().stackTrace) {
             var targetName = stack.className
-            if (targetName == this.javaClass.name){
+            if (targetName == this.javaClass.name) {
                 continue
             }
-            if (stackTraceElement == null && targetName.substring(0,10) == "com.amazon"){
+            if (stackTraceElement == null && targetName.substring(0, 10) == "com.amazon") {
                 stackTraceElement = stack
             }
-            if (stack.methodName == "runWithElasticUser"){
+            if (stack.methodName == "runWithElasticUser") {
                 //this method called by runWithElasticUser
                 return
             }
         }
-        if (stackTraceElement != null){
+        if (stackTraceElement != null) {
             var targetName = stackTraceElement.className
-            if (callerMap[targetName+stackTraceElement.lineNumber] == null ){
-                callerMap[targetName+stackTraceElement.lineNumber] = method
+            if (callerMap[targetName + stackTraceElement.lineNumber] == null) {
+                callerMap[targetName + stackTraceElement.lineNumber] = method
                 println("DynamicAuthIndicesAdminClientProxy: $targetName line ${stackTraceElement.lineNumber} call $method")
             }
         }

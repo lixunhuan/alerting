@@ -17,6 +17,7 @@ package com.amazon.opendistroforelasticsearch.alerting.alerts
 
 import com.amazon.opendistroforelasticsearch.alerting.alerts.AlertIndices.Companion.ALERT_INDEX
 import com.amazon.opendistroforelasticsearch.alerting.alerts.AlertIndices.Companion.HISTORY_WRITE_INDEX
+import com.amazon.opendistroforelasticsearch.alerting.core.auth.AuthCenter
 import com.amazon.opendistroforelasticsearch.alerting.model.Alert
 import com.amazon.opendistroforelasticsearch.alerting.model.Monitor
 import com.amazon.opendistroforelasticsearch.alerting.elasticapi.suspendUntil
@@ -67,7 +68,7 @@ suspend fun moveAlerts(client: Client, monitorId: String, monitor: Monitor? = nu
     val activeAlertsRequest = SearchRequest(AlertIndices.ALERT_INDEX)
         .routing(monitorId)
         .source(activeAlertsQuery)
-    val response: SearchResponse = client.suspendUntil { search(activeAlertsRequest, it) }
+    val response: SearchResponse = client.suspendUntil { AuthCenter.runWithElasticUser{search(activeAlertsRequest, it)} }
 
     // If no alerts are found, simply return
     if (response.hits.totalHits?.value == 0L) return
@@ -82,7 +83,7 @@ suspend fun moveAlerts(client: Client, monitorId: String, monitor: Monitor? = nu
             .id(hit.id)
     }
     val copyRequest = BulkRequest().add(indexRequests)
-    val copyResponse: BulkResponse = client.suspendUntil { bulk(copyRequest, it) }
+    val copyResponse: BulkResponse = client.suspendUntil { AuthCenter.runWithElasticUser {bulk(copyRequest, it)} }
 
     val deleteRequests = copyResponse.items.filterNot { it.isFailed }.map {
         DeleteRequest(AlertIndices.ALERT_INDEX, it.id)
@@ -90,7 +91,7 @@ suspend fun moveAlerts(client: Client, monitorId: String, monitor: Monitor? = nu
             .version(it.version)
             .versionType(VersionType.EXTERNAL_GTE)
     }
-    val deleteResponse: BulkResponse = client.suspendUntil { bulk(BulkRequest().add(deleteRequests), it) }
+    val deleteResponse: BulkResponse = client.suspendUntil { AuthCenter.runWithElasticUser {bulk(BulkRequest().add(deleteRequests), it)} }
 
     if (copyResponse.hasFailures()) {
         val retryCause = copyResponse.items.filter { it.isFailed }

@@ -15,10 +15,13 @@
 package com.amazon.opendistroforelasticsearch.alerting
 
 import com.amazon.opendistroforelasticsearch.alerting.alerts.AlertIndices
+import com.amazon.opendistroforelasticsearch.alerting.core.auth.AuthCenter
+import com.amazon.opendistroforelasticsearch.alerting.core.auth.ExtendThreadContextManager
 import com.amazon.opendistroforelasticsearch.alerting.core.JobSweeper
 import com.amazon.opendistroforelasticsearch.alerting.core.ScheduledJobIndices
 import com.amazon.opendistroforelasticsearch.alerting.core.action.node.ScheduledJobsStatsAction
 import com.amazon.opendistroforelasticsearch.alerting.core.action.node.ScheduledJobsStatsTransportAction
+import com.amazon.opendistroforelasticsearch.alerting.core.auth.DynamicAuthClientProxy
 import com.amazon.opendistroforelasticsearch.alerting.core.model.ScheduledJob
 import com.amazon.opendistroforelasticsearch.alerting.core.model.SearchInput
 import com.amazon.opendistroforelasticsearch.alerting.core.resthandler.RestScheduledJobStatsHandler
@@ -78,11 +81,16 @@ internal class AlertingPlugin : PainlessExtension, ActionPlugin, ScriptPlugin, P
     }
 
     companion object {
-        @JvmField val KIBANA_USER_AGENT = "Kibana"
-        @JvmField val UI_METADATA_EXCLUDE = arrayOf("monitor.${Monitor.UI_METADATA_FIELD}")
-        @JvmField val MONITOR_BASE_URI = "/_opendistro/_alerting/monitors"
-        @JvmField val DESTINATION_BASE_URI = "/_opendistro/_alerting/destinations"
-        @JvmField val ALERTING_JOB_TYPES = listOf("monitor")
+        @JvmField
+        val KIBANA_USER_AGENT = "Kibana"
+        @JvmField
+        val UI_METADATA_EXCLUDE = arrayOf("monitor.${Monitor.UI_METADATA_FIELD}")
+        @JvmField
+        val MONITOR_BASE_URI = "/_opendistro/_alerting/monitors"
+        @JvmField
+        val DESTINATION_BASE_URI = "/_opendistro/_alerting/destinations"
+        @JvmField
+        val ALERTING_JOB_TYPES = listOf("monitor")
     }
 
     lateinit var runner: MonitorRunner
@@ -94,13 +102,13 @@ internal class AlertingPlugin : PainlessExtension, ActionPlugin, ScriptPlugin, P
     lateinit var clusterService: ClusterService
 
     override fun getRestHandlers(
-        settings: Settings,
-        restController: RestController,
-        clusterSettings: ClusterSettings,
-        indexScopedSettings: IndexScopedSettings,
-        settingsFilter: SettingsFilter,
-        indexNameExpressionResolver: IndexNameExpressionResolver?,
-        nodesInCluster: Supplier<DiscoveryNodes>
+            settings: Settings,
+            restController: RestController,
+            clusterSettings: ClusterSettings,
+            indexScopedSettings: IndexScopedSettings,
+            settingsFilter: SettingsFilter,
+            indexNameExpressionResolver: IndexNameExpressionResolver?,
+            nodesInCluster: Supplier<DiscoveryNodes>
     ): List<RestHandler> {
         return listOf(RestGetMonitorAction(restController),
                 RestDeleteMonitorAction(restController),
@@ -122,23 +130,26 @@ internal class AlertingPlugin : PainlessExtension, ActionPlugin, ScriptPlugin, P
     }
 
     override fun createComponents(
-        client: Client,
-        clusterService: ClusterService,
-        threadPool: ThreadPool,
-        resourceWatcherService: ResourceWatcherService,
-        scriptService: ScriptService,
-        xContentRegistry: NamedXContentRegistry,
-        environment: Environment,
-        nodeEnvironment: NodeEnvironment,
-        namedWriteableRegistry: NamedWriteableRegistry
+            client: Client,
+            clusterService: ClusterService,
+            threadPool: ThreadPool,
+            resourceWatcherService: ResourceWatcherService,
+            scriptService: ScriptService,
+            xContentRegistry: NamedXContentRegistry,
+            environment: Environment,
+            nodeEnvironment: NodeEnvironment,
+            namedWriteableRegistry: NamedWriteableRegistry
     ): Collection<Any> {
-        // Need to figure out how to use the Elasticsearch DI classes rather than handwiring things here.
+        // Need to figure out how to use the Elasticsearch DI classes rather than handwriting things here.
         val settings = environment.settings()
-        alertIndices = AlertIndices(settings, client, threadPool, clusterService)
-        runner = MonitorRunner(settings, client, threadPool, scriptService, xContentRegistry, alertIndices, clusterService)
-        scheduledJobIndices = ScheduledJobIndices(client.admin(), clusterService)
+        AuthCenter.setUpAuthContextOnAlertPluginInit(threadPool.threadContext)
+        ExtendThreadContextManager.load()
+        val extendedClient = DynamicAuthClientProxy.clone(client)
+        alertIndices = AlertIndices(settings, extendedClient.admin().indices(), threadPool, clusterService)
+        runner = MonitorRunner(settings, extendedClient, threadPool, scriptService, xContentRegistry, alertIndices, clusterService)
+        scheduledJobIndices = ScheduledJobIndices(extendedClient.admin(), clusterService)
         scheduler = JobScheduler(threadPool, runner)
-        sweeper = JobSweeper(environment.settings(), client, clusterService, threadPool, xContentRegistry, scheduler, ALERTING_JOB_TYPES)
+        sweeper = JobSweeper(environment.settings(), extendedClient, clusterService, threadPool, xContentRegistry, scheduler, ALERTING_JOB_TYPES)
         this.threadPool = threadPool
         this.clusterService = clusterService
         return listOf(sweeper, scheduler, runner, scheduledJobIndices)

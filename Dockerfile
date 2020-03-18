@@ -8,3 +8,8 @@ COPY ./notification/build/libs/alerting-notification-1.2.0.0.jar /usr/share/elas
 COPY ./core/build/libs/alerting-core-1.2.0.0.jar /usr/share/elasticsearch/plugins/opendistro_alerting
 COPY ./alerting/build/distributions/opendistro_alerting-1.2.0.0-SNAPSHOT.jar /usr/share/elasticsearch/plugins/opendistro_alerting
 
+RUN mkdir /usr/share/elasticsearch/config/certs
+COPY ./elastic-stack-ca.p12 /usr/share/elasticsearch/config/certs/elastic-stack-ca.p12
+COPY ./elastic-certificates.p12 /usr/share/elasticsearch/config/certs/elastic-certificates.p12
+RUN chown elasticsearch:elasticsearch /usr/share/elasticsearch/config/certs/elastic-stack-ca.p12 &chown elasticsearch:elasticsearch /usr/share/elasticsearch/config/certs/elastic-certificates.p12
+RUN ls -ll /usr/share/elasticsearch/config/certs
